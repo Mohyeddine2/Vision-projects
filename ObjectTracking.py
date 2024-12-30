@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 import os
 import matplotlib.pyplot as plt
-def calculate_histogram(image, bins=32):
+def calculate_histogram(image, bins=255):
     hsv_image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
     hist = cv2.calcHist([hsv_image], [0, 1], None, [bins, bins], [0, 180, 0, 256])
     return cv2.normalize(hist, hist).flatten()
@@ -22,6 +22,13 @@ def emd(hist1, hist2):
     bins2 = np.array([[i, hist2[i]] for i in range(len(hist2))], dtype=np.float32)
     emd_value, _, _ = cv2.EMD(bins1, bins2, cv2.DIST_L2)
     return emd_value
+def qf_distance(hist1, hist2):
+    A = np.zeros((len(hist1), len(hist2)))
+    dist = np.abs(hist1[:, None] - hist2)
+    A = 1 - dist / np.max(dist)
+    diff = np.abs(hist1 - hist2)
+    qf = np.sqrt(np.dot(diff.T, np.dot(A, diff)))
+    return qf
 def find_minimum_distance(reference_image_path, scene_folder, bins=32):
     # Charger l'image de référence
     reference_image = cv2.imread(reference_image_path)
@@ -33,14 +40,14 @@ def find_minimum_distance(reference_image_path, scene_folder, bins=32):
         'Bhattacharyya': float('inf'),
         'Minkowski': float('inf'),
         'Matusita': float('inf'),
-        'Cosine': float('inf'),
+        'QF': float('inf'),
         'EMD': float('inf')
     }
     closest_images = {
         'Bhattacharyya': None,
         'Minkowski': None,
         'Matusita': None,
-        'Cosine': None,
+        'QF': None,
         'EMD': None
     }
     for filename in os.listdir(scene_folder):
@@ -55,7 +62,7 @@ def find_minimum_distance(reference_image_path, scene_folder, bins=32):
                 'Bhattacharyya': bhattacharyya_distance(reference_hist, target_hist),
                 'Minkowski': minkowski_distance(reference_hist, target_hist),
                 'Matusita': matusita_distance(reference_hist, target_hist),
-                'Cosine': cosine_distance(reference_hist, target_hist),
+                'QF': qf_distance(reference_hist, target_hist),
                 'EMD': emd(reference_hist, target_hist)
             }
 
@@ -66,7 +73,7 @@ def find_minimum_distance(reference_image_path, scene_folder, bins=32):
     return min_distances, closest_images, reference_image,distances
 def visualize_results(reference_image, closest_images, min_distances):
     metrics = list(closest_images.keys())
-    fig, axes = plt.subplots(1, len(metrics) + 1, figsize=(15, 5))
+    fig, axes = plt.subplots(1, len(metrics) + 1, figsize=(15, 10))
     axes[0].imshow(cv2.cvtColor(reference_image, cv2.COLOR_BGR2RGB))
     axes[0].set_title("Image de Référence")
     axes[0].axis('off')
@@ -80,11 +87,14 @@ def visualize_results(reference_image, closest_images, min_distances):
         axes[i + 1].axis('off')
     plt.tight_layout()
     plt.show()
-reference_image_path = "Scene1/158.jpg"
-scene_folder = "Scene1"
+reference_image_path = "20210617_193155.jpg"
+scene_folder = "scene"
 min_distances, closest_images, reference_image, dis = find_minimum_distance(reference_image_path, scene_folder)
 print("Distances minimales et images correspondantes :")
 for metric, distance in min_distances.items():
     print(f"{metric} : {distance:.4f} (Image : {closest_images[metric]})")
 visualize_results(reference_image, closest_images, min_distances)
+
+
+
 
